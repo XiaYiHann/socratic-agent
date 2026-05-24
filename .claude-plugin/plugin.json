@@ -1,0 +1,12 @@
+{
+  "name": "socratic-agent",
+  "version": "0.1.0",
+  "description": "A multi-agent Socratic learning system for Claude Code. Guided derivation + spaced-repetition quiz + Obsidian knowledge graph.",
+  "author": {
+    "name": "xyh",
+    "url": "https://github.com/xyh"
+  },
+  "homepage": "https://github.com/xyh/socratic-agent",
+  "license": "MIT",
+  "tags": ["education", "ai-agent", "knowledge-graph", "spaced-repetition"]
+}

@@ -1,172 +1,183 @@
-# Study OS — 基于 Claude Code + Obsidian 的引导式学习系统
+# SocraticAgent
 
-## 架构
+> **Learn by derivation, not by digestion.**  
+> A multi-agent Socratic learning system for Claude Code — guided derivation, spaced-repetition quiz, and Obsidian knowledge graph.
+
+[![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-blue)](https://github.com/anthropics/claude-code)
+[![Obsidian](https://img.shields.io/badge/Obsidian-Graph-purple)](https://obsidian.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
+
+## The Problem
+
+Reading papers sucks. You download a PDF, open it, read the Introduction, hit a wall of math at Section 3, and give up. Three days later you remember almost nothing.
+
+**SocraticAgent** replaces passive reading with **active derivation**.
+
+Instead of summarizing, three specialized AI Agents work together to:
+1. **Tutor Agent** — guides you step-by-step through the logic chain
+2. **Quiz Agent** — validates understanding at each step
+3. **Scheduler Agent** — persists knowledge into an Obsidian graph and schedules spaced-repetition reviews
+
+---
+
+## Architecture
 
 ```
-Study OS
-├── .claude/
-│   ├── CLAUDE.md              # 项目级系统提示（苏格拉底式教学 + Obsidian 输出规范）
-│   └── commands/
-│       ├── learn.md           # /learn 命令：学习材料 → 知识图谱
-│       └── quiz.md            # /quiz 命令：交互测验 → 掌握度更新
-├── materials/                 # 原始材料（PDF、Markdown、文本）
-├── notes/
-│   ├── concepts/              # 核心概念笔记（Obsidian 节点）
-│   └── sources/               # 源材料索引（Obsidian 节点）
-├── quiz/
-│   └── retest-queue.md        # 错题重测队列
-└── .obsidian/                 # Obsidian 配置（可选）
+┌─────────────────────────────────────────────────────────┐
+│                    SocraticAgent                         │
+├─────────────┬──────────────┬────────────────────────────┤
+│  /learn     │   /quiz       │   Obsidian Graph           │
+│             │               │                            │
+│  Tutor      │   Quiz        │   Scheduler                │
+│  Agent      │   Agent       │   Agent                    │
+│  ├ Preview  │  ├ Pool build  │  ├ Note generation         │
+│  ├ Step 1   │  ├ Ask       │  ├ Quiz seed               │
+│  ├ Step 2   │  ├ Feedback   │  ├ Ebbinghaus schedule     │
+│  ├ ...      │  ├ Report     │  └ Retest queue            │
+│  └ Synthesis│  └ Review     │                            │
+└─────────────┴──────────────┴────────────────────────────┘
 ```
 
-## 快速开始
+### Agent 1: Socratic Tutor
+- Reads your paper/blog/book
+- Extracts the core problem + key formula chain
+- **Asks before telling**: "What is the variance of Q·K if each element is N(0,1)?"
+- Never dumps a 3-paragraph explanation. One step, one question.
 
-### 1. 安装依赖
+### Agent 2: Quiz Engine
+- Generates questions targeting **common misconceptions**, not trivia
+- 4-choice single-select + fill-in-the-blank + association questions
+- Instant feedback with a **memory hook** (rhyme / acronym)
+- Wrong answers get a personalized explanation of *why your specific choice was wrong*
 
-- [Claude Code](https://github.com/anthropics/claude-code) CLI
-- [Obsidian](https://obsidian.md/)（桌面端）
+### Agent 3: Spaced Scheduler
+- Generates structured Obsidian notes with YAML frontmatter
+- Pre-seeds 3 quiz questions per concept
+- Tracks `mastery`, `interval_index`, `last_review` per note
+- Auto-computes Ebbinghaus due dates: **1 → 3 → 7 → 15 → 30 → 60 days**
 
-### 2. 初始化仓库
+---
+
+## Quick Start
+
+### 1. Install
 
 ```bash
-cd ~/code/study-os
-git init
-git add .
-git commit -m "init: Study OS skeleton"
+# In any Claude Code project
+claude plugins install https://github.com/xyh/socratic-agent
 ```
 
-### 3. 用 Obsidian 打开
-
-在 Obsidian 中 `打开本地文件夹`，选择 `~/code/study-os`。开启核心插件：
-- **Graph View**（知识图谱可视化）
-- **Templates**（可选）
-
-### 4. 用 Claude Code 打开
-
+Or manually clone into your project:
 ```bash
-cd ~/code/study-os
-claude
+cd your-project
+git clone https://github.com/xyh/socratic-agent.git .claude/plugins/socratic-agent
 ```
 
-## 工作流
+### 2. Open Obsidian
 
-### 学习新材料
+In Obsidian, `Open folder as vault` → select your project's `notes/` directory.
+
+Press `Ctrl/Cmd + G` to open the **Graph View**. Watch nodes grow as you learn.
+
+### 3. Learn something
 
 ```
 /learn materials/attention-is-all-you-need.pdf
 ```
 
-Claude Code 会：
-1. 拆解材料 → 结构化摘要
-2. 苏格拉底式提问带你逐步理解
-3. 自动生成 `notes/concepts/*.md` 笔记（含 YAML + 双链）
-4. 生成源索引 `notes/sources/attention-is-all-you-need.md`
-5. 标记 `quiz_ready: true`
+The Tutor Agent will:
+1. Show the core problem + formula list
+2. Ask if you're ready
+3. Guide you through the derivation one step at a time
+4. Auto-generate notes in `notes/concepts/` and `notes/sources/`
 
-### 查看知识图谱
-
-切换到 Obsidian，按 `Ctrl/Cmd + G` 打开 Graph View。节点 = 概念笔记，边 = `[[双链]]`。
-
-### 测验巩固
+### 4. Quiz yourself
 
 ```
-/quiz
+/quiz mixed
 ```
 
-Claude Code 会：
-1. 从 `quiz_ready: true` 且 `mastery: false` 的笔记中抽题
-2. 生成 4 选 1 单选题，交互式提问
-3. 答对 → `mastery: true`；答错 → 加入 `quiz/retest-queue.md`
-4. 输出薄弱环节报告
+Pulls 50% new concepts + 50% due-for-review concepts. Answer, get feedback, watch your knowledge graph turn green (`mastery: true`).
 
-### 重测错题
+### 5. Review tomorrow
 
 ```
 /quiz review
 ```
 
-## 笔记规范
+Only concepts whose Ebbinghaus interval has expired. Fight the forgetting curve.
 
-### 概念笔记（`notes/concepts/*.md`）
-
-文件名：英文 slug（如 `self-attention.md`）
-
-```markdown
----
-id: self-attention
-aliases: [自注意力, SA]
-tags: [area/nlp, status/learning, source/attention-is-all-you-need]
-created: 2026-05-25
-mastery: false
-quiz_ready: true
-quiz_questions:
-  - "Scaled Dot-Product Attention 中除以 sqrt(d_k) 的主要目的是？"
-  - "Multi-Head Attention 的 head 数通常是？"
 ---
 
-# 自注意力机制
+## Commands
 
-## 一句话定义
-一种让序列中每个位置都能直接关注其他所有位置的机制。
+| Command | Mode | Description |
+|---------|------|-------------|
+| `/learn <file>` | — | Guided derivation from a paper, blog, or pasted text |
+| `/learn --fast <file>` | — | Skip derivation, go straight to summary + interview questions |
+| `/quiz` | Standard | New concepts first |
+| `/quiz mixed` | **Recommended** | 50% new + 50% review |
+| `/quiz review` | Spaced Repetition | Only due-for-review items |
+| `/quiz interview` | Interview Prep | NLP/LLM/ML only, 50% choice + 50% derivation fill-in |
+| `/quiz source <slug>` | Scoped | Quiz concepts from a specific source |
+| `/quiz area/<tag>` | Filtered | e.g. `/quiz area/nlp` |
 
-## 与我已知知识的关联
-- [[recurrent-neural-network|RNN]] — 取代了串行隐藏状态传递
-- [[softmax|Softmax]] — 在注意力权重归一化中使用
-
-## 细节展开
-...
-```
-
-### 源索引（`notes/sources/*.md`）
-
-```markdown
----
-id: attention-is-all-you-need
-type: paper
-created: 2026-05-25
 ---
 
-# 《Attention Is All You Need》
+## Interview Mode
 
-## 核心论点
-1. 完全用 Attention 替代 RNN/CNN，实现并行化
-2. 提出 Multi-Head Self-Attention + Positional Encoding
-3. Transformer 架构成为后续所有大模型的基础
+Preparing for ML/LLM interviews? Use `/quiz interview`.
 
-## 涉及的概念
-- [[self-attention|自注意力]]
-- [[multi-head-attention|多头注意力]]
-- [[positional-encoding|位置编码]]
-- [[transformer|Transformer]]
+- Only `area/nlp`, `area/llm`, `area/ml` concepts
+- Derivation fill-in-the-blank questions ("Complete the scaled dot-product formula: ___")
+- Time-pressured feel (optional)
+- Session ends with a **mastery percentage** and a **weak-link report**
 
-## 我的批注
-- 2026-05-25: Scaled Dot-Product 的 sqrt(d_k) 是为了防止点积过大导致 softmax 梯度消失
-```
+---
 
-## 进阶用法
+## Knowledge Graph
 
-### 批量学习
+SocraticAgent is designed around **Obsidian** as the knowledge backend.
 
-```bash
-# 在 Claude Code 中
-for f in materials/*.pdf; do /learn "$f"; done
-```
+- Every concept = a node (`notes/concepts/*.md`)
+- Every source = a hub linking to its concepts (`notes/sources/*.md`)
+- Wikilinks `[[slug|Name]]` create graph edges
+- YAML frontmatter tracks learning state
 
-### 按领域过滤测验
+Watch your graph grow from a few isolated nodes to a dense web of interconnected ideas.
 
-```
-/quiz area/nlp
-/quiz area/diffusion
-/quiz area/zk
-```
+---
 
-### 知识图谱缺口分析
+## Why Not Just Read the Paper?
 
-```
-/analyze-graph
-```
+| | Traditional Reading | SocraticAgent |
+|---|---|---|
+| **Pace** | You set it (often too fast) | Agent enforces one-step-at-a-time |
+| **Retention** | Re-read later (unscheduled) | Ebbinghaus auto-schedules review |
+| **Misconceptions** | You don't know what you don't know | Quiz Agent targets common errors |
+| **Organization** | Scattered notes | Structured Obsidian graph |
+| **Interview prep** | Re-read everything | `/quiz interview` drills weak spots |
 
-（自定义命令：扫描所有概念笔记，找出缺少入链接或出链接的孤立节点）
+---
 
-## 与 30 天冲刺的结合
+## Contributing
 
-将 30 天计划中的阅读材料放入 `materials/`，每天用 `/learn` 学习当天论文，学完后用 `/quiz` 测验。Obsidian Graph View 会直观显示知识积累过程。
+This project is built for people who learn by building. If you have a better mnemonic for backprop, a cleaner graph layout, or a new question type, PRs welcome.
+
+### Roadmap
+- [ ] `/learn` support for arXiv URLs (auto-fetch + parse)
+- [ ] `/quiz` support for image-based questions (diagrams, architectures)
+- [ ] Plugin marketplace registration (pending Claude Code official approval)
+- [ ] Sync with Anki deck export
+
+---
+
+## License
+
+MIT
+
+---
+
+> *"I cannot teach anybody anything. I can only make them think."* — Socrates
